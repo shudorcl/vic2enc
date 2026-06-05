@@ -4,3 +4,4 @@
 /ParadoxLocalisationAssistant
 **/*.rs.bk
 *.pdb
+/Reference

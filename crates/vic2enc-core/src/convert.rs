@@ -1,8 +1,9 @@
 //! High-level conversion entry points: in-memory bytes, single file, and
-//! recursive directory batch over `*.csv`.
+//! recursive directory batch over localisation `*.csv` and event/decision
+//! script `*.txt`.
 
 use std::fmt;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use walkdir::WalkDir;
 
@@ -100,26 +101,94 @@ pub fn convert_file(
     Ok(stats)
 }
 
-fn is_csv(path: &Path) -> bool {
+/// Which files a directory batch should pick up.
+///
+/// `*.csv` (localisation) is always converted. `*.txt` is Paradox script and
+/// only carries display text in `events`/`decisions` folders, so handling is
+/// gated: [`BatchScope::convert_txt`] turns `*.txt` conversion on/off entirely
+/// (on by default), and [`BatchScope::txt_all_folders`] widens it from just
+/// `events`/`decisions` to every folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BatchScope {
+    /// Convert script `*.txt` at all (default `true`). When `false`, only
+    /// `*.csv` is processed regardless of [`Self::txt_all_folders`].
+    pub convert_txt: bool,
+    /// Convert `*.txt` in every folder, not just `events`/`decisions`.
+    pub txt_all_folders: bool,
+}
+
+impl Default for BatchScope {
+    fn default() -> Self {
+        BatchScope {
+            convert_txt: true,
+            txt_all_folders: false,
+        }
+    }
+}
+
+fn has_ext(path: &Path, target: &str) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("csv"))
+        .map(|e| e.eq_ignore_ascii_case(target))
         .unwrap_or(false)
 }
 
-/// Recursively convert every `*.csv` file under `input_dir`, mirroring the
-/// directory structure into `output_dir`.
+fn is_script_dir(name: &str) -> bool {
+    name.eq_ignore_ascii_case("events") || name.eq_ignore_ascii_case("decisions")
+}
+
+/// Is `path` inside an `events`/`decisions` folder relative to `input_dir`?
+/// `input_dir`'s own final segment counts, so pointing `-i` straight at an
+/// `events` folder works too.
+fn under_script_dir(input_dir: &Path, path: &Path) -> bool {
+    if input_dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .map(is_script_dir)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let rel = path.strip_prefix(input_dir).unwrap_or(path);
+    let mut dirs: Vec<&str> = rel
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => s.to_str(),
+            _ => None,
+        })
+        .collect();
+    dirs.pop(); // drop the file name itself
+    dirs.into_iter().any(is_script_dir)
+}
+
+fn should_convert(input_dir: &Path, path: &Path, scope: BatchScope) -> bool {
+    if has_ext(path, "csv") {
+        return true;
+    }
+    if has_ext(path, "txt") {
+        if !scope.convert_txt {
+            return false;
+        }
+        return scope.txt_all_folders || under_script_dir(input_dir, path);
+    }
+    false
+}
+
+/// Recursively convert every matching file under `input_dir` (see
+/// [`BatchScope`]), mirroring the directory structure into `output_dir`.
 pub fn convert_dir(
     input_dir: &Path,
     output_dir: &Path,
     dir: Direction,
     opts: &ConvertOptions,
+    scope: BatchScope,
 ) -> Result<Stats> {
     let mut total = Stats::default();
     for entry in WalkDir::new(input_dir).into_iter() {
         let entry = entry?;
         let path = entry.path();
-        if !entry.file_type().is_file() || !is_csv(path) {
+        if !entry.file_type().is_file() || !should_convert(input_dir, path, scope) {
             continue;
         }
         let rel = path.strip_prefix(input_dir).unwrap_or(path);
@@ -177,5 +246,88 @@ mod tests {
         with_bom.extend_from_slice("KEY;test;x".as_bytes());
         let game = convert_bytes(&with_bom, Direction::ToGame, &opts(false));
         assert_eq!(game, b"KEY;test;x");
+    }
+
+    #[test]
+    fn script_txt_only_under_events_or_decisions() {
+        let root = Path::new("/mod");
+        let none = BatchScope::default();
+        // csv anywhere
+        assert!(should_convert(root, Path::new("/mod/common/x.csv"), none));
+        // txt under events / decisions
+        assert!(should_convert(root, Path::new("/mod/events/x.txt"), none));
+        assert!(should_convert(root, Path::new("/mod/decisions/sub/y.txt"), none));
+        assert!(should_convert(root, Path::new("/mod/Events/CamelCase.txt"), none));
+        // txt elsewhere: skipped by default
+        assert!(!should_convert(root, Path::new("/mod/common/units/z.txt"), none));
+        // ...but converted when txt_all_folders is set
+        let all = BatchScope {
+            txt_all_folders: true,
+            ..BatchScope::default()
+        };
+        assert!(should_convert(root, Path::new("/mod/common/units/z.txt"), all));
+        // unrelated extensions never convert
+        assert!(!should_convert(root, Path::new("/mod/events/readme.md"), none));
+    }
+
+    #[test]
+    fn convert_txt_disabled_skips_all_txt() {
+        let root = Path::new("/mod");
+        let no_txt = BatchScope {
+            convert_txt: false,
+            txt_all_folders: true,
+        };
+        // csv still converts
+        assert!(should_convert(root, Path::new("/mod/localisation/x.csv"), no_txt));
+        // ...but every txt is skipped, even under events and even with all-folders on
+        assert!(!should_convert(root, Path::new("/mod/events/x.txt"), no_txt));
+        assert!(!should_convert(root, Path::new("/mod/common/y.txt"), no_txt));
+    }
+
+    #[test]
+    fn input_dir_pointing_at_events_folder_counts() {
+        let root = Path::new("/mod/events");
+        assert!(should_convert(
+            root,
+            Path::new("/mod/events/foo.txt"),
+            BatchScope::default()
+        ));
+    }
+
+    #[test]
+    fn convert_dir_respects_scope() {
+        let base = std::env::temp_dir().join(format!("vic2enc_dirtest_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let src = base.join("src");
+        std::fs::create_dir_all(src.join("events")).unwrap();
+        std::fs::create_dir_all(src.join("common")).unwrap();
+        std::fs::write(src.join("localisation.csv"), "K;中国;x\n").unwrap();
+        std::fs::write(src.join("events").join("e.txt"), "name = \"北京\"\n").unwrap();
+        std::fs::write(src.join("common").join("c.txt"), "ignored = \"上海\"\n").unwrap();
+
+        let out = base.join("out");
+        let stats = convert_dir(&src, &out, Direction::ToGame, &opts(false), BatchScope::default())
+            .unwrap();
+        assert_eq!(stats.files, 2, "csv + events/txt only");
+        assert!(out.join("localisation.csv").exists());
+        assert!(out.join("events").join("e.txt").exists());
+        assert!(!out.join("common").join("c.txt").exists());
+
+        let out_all = base.join("out_all");
+        let stats_all = convert_dir(
+            &src,
+            &out_all,
+            Direction::ToGame,
+            &opts(false),
+            BatchScope {
+                txt_all_folders: true,
+                ..BatchScope::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(stats_all.files, 3, "all txt folders");
+        assert!(out_all.join("common").join("c.txt").exists());
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

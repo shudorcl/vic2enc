@@ -45,6 +45,28 @@ fn full_roundtrip_is_byte_identical() {
 }
 
 #[test]
+fn utf8_script_line_encodes_to_gbk_game_format() {
+    // A Vic2 event `change_region_name` dynamic-text line authored in UTF-8
+    // Chinese with a §M colour code. Encoding (readable UTF-8 -> game) must
+    // produce GBK bytes with the control char as a single 0xA7.
+    let utf8 = "change_region_name = \"§M离开联盟§!\"";
+    let game = convert_bytes(utf8.as_bytes(), Direction::ToGame, &opts(true));
+
+    let mut expected = b"change_region_name = \"".to_vec();
+    expected.extend_from_slice(&[0xA7, b'M']); // §M
+    expected.extend_from_slice(&[0xC0, 0xEB]); // 离
+    expected.extend_from_slice(&[0xBF, 0xAA]); // 开
+    expected.extend_from_slice(&[0xC1, 0xAA]); // 联
+    expected.extend_from_slice(&[0xC3, 0xCB]); // 盟
+    expected.extend_from_slice(&[0xA7, b'!']); // §!
+    expected.push(b'"');
+
+    assert_eq!(game, expected);
+    // No UTF-8 multi-byte sequence for 离 (E7 A6 BB) should remain.
+    assert!(!game.windows(3).any(|w| w == [0xE7, 0xA6, 0xBB]));
+}
+
+#[test]
 fn pound_starting_gbk_pair_is_not_an_icon_key() {
     // 0xA3 followed by a high byte is a real GBK full-width sequence (０ = A3B0),
     // not a `£` icon delimiter. It must decode as the full-width digit and

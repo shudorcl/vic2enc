@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
-use vic2enc_core::{convert_dir, convert_file, Codepage, ConvertOptions, Direction};
+use vic2enc_core::{convert_dir, convert_file, BatchScope, Codepage, ConvertOptions, Direction};
 
 /// Convert Victoria 2 localisation CSV files between game format (GBK
 /// dummy-Latin1) and readable Unicode.
@@ -40,6 +40,17 @@ struct ConvArgs {
     #[arg(long)]
     no_safe_tokens: bool,
 
+    /// In directory mode, skip script `*.txt` entirely and convert only `*.csv`
+    /// (by default `*.txt` under `events`/`decisions` is converted too).
+    #[arg(long)]
+    no_txt: bool,
+
+    /// In directory mode, also convert `*.txt` outside `events`/`decisions`
+    /// folders (by default script `*.txt` is converted only there; `*.csv`
+    /// is always converted). Ignored when `--no-txt` is set.
+    #[arg(long)]
+    all_txt: bool,
+
     /// Target codepage for the dummy-Latin1 layer.
     #[arg(long, default_value = "gbk")]
     codepage: String,
@@ -63,7 +74,11 @@ fn run(args: &ConvArgs, dir: Direction) -> Result<()> {
         bail!("input path does not exist: {}", input.display());
     }
     let stats = if input.is_dir() {
-        convert_dir(input, &args.output, dir, &opts)?
+        let scope = BatchScope {
+            convert_txt: !args.no_txt,
+            txt_all_folders: args.all_txt,
+        };
+        convert_dir(input, &args.output, dir, &opts, scope)?
     } else {
         convert_file(input, &args.output, dir, &opts)?
     };
