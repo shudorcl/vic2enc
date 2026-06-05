@@ -58,12 +58,29 @@
       word-break: break-all; margin: 0; font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px;
     }
     .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.6; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .tabs button {
+      background: var(--panel); border: 1px solid var(--border); border-bottom: none;
+      border-radius: 8px 8px 0 0; padding: 10px 18px; color: var(--muted); font-weight: 600;
+    }
+    .tabs button.active { background: var(--accent); color: #11151c; }
+    .page { display: none; }
+    .page.active { display: block; }
+    dl.report { margin: 12px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; }
+    dl.report dt { color: var(--muted); }
+    dl.report dd { margin: 0; }
   </style>
 </head>
 <body>
   <h1>Vic2 编码转换工具</h1>
-  <div class="sub">维多利亚2 本地化 CSV：游戏格式 (GBK 伪 Latin-1) ⇄ 可读 UTF-8</div>
+  <div class="sub">维多利亚2 本地化 CSV / 脚本：游戏格式 (GBK 伪 Latin-1) ⇄ 可读 UTF-8</div>
 
+  <div class="tabs" id="tabs">
+    <button data-page="convert" class="active">编码转换</button>
+    <button data-page="migrate">PA 一键迁移</button>
+  </div>
+
+  <div class="page active" id="page-convert">
   <div class="card">
     <div class="row">
       <label class="field">方向</label>
@@ -90,6 +107,11 @@
         <select id="codepage"><option value="gbk">GBK · 简体中文</option></select>
       </label>
     </div>
+    <div class="row opts">
+      <label><input type="checkbox" id="convertTxt" checked /> 转换 .txt 脚本</label>
+      <label><input type="checkbox" id="txtAllFolders" /> 转换所有文件夹的 .txt（默认仅 events / decisions）</label>
+    </div>
+    <div class="hint">批量（文件夹）模式：<b>.csv</b> 全部转换；<b>.txt</b> 默认只转 events / decisions 内的脚本，可整体关闭或扩到全部。</div>
   </div>
 
   <div class="card">
@@ -104,6 +126,39 @@
       解码后得到可读 UTF-8 便于编辑/翻译；编辑完成后再编码回游戏格式覆盖原文件。
     </div>
   </div>
+  </div><!-- /page-convert -->
+
+  <div class="page" id="page-migrate">
+  <div class="card">
+    <div class="row">
+      <label class="field">模组目录</label>
+      <input type="text" id="modDir" placeholder="选择模组根目录（含 localisation / events / decisions / common）" />
+      <button id="pickModDir">文件夹</button>
+    </div>
+    <div class="row opts">
+      <label><input type="checkbox" id="paBackup" checked /> 迁移前备份受影响的文件夹</label>
+      <label>编码
+        <select id="paCodepage"><option value="gbk">GBK · 简体中文</option></select>
+      </label>
+    </div>
+    <div class="hint">
+      把「PA 汉化」式 mod 迁移到现代 <b>assets/localisation/zh-CN</b>（UTF-8）布局：<br />
+      ① 把 <b>localisation/</b> 内的游戏格式文件解码为可读 UTF-8，镜像写入 <b>assets/localisation/zh-CN/</b>。<br />
+      ② 扫描 <b>events / decisions / common</b> 里形如 <code>key = "中文" # English</code> 的脚本行：
+      把中文抽出成 <code>English;中文;x</code> 写进同名 <b>.csv</b>，并把脚本行还原为 <code>key = "English"</code>（保留缩进/换行）。<br />
+      ③ 改动<b>就地</b>进行，勾选备份会先把 localisation/events/decisions/common 复制到 <b>_pa_backup_*</b>。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button class="primary" id="runMigrate">开始迁移</button>
+      <span id="mStatus"></span>
+    </div>
+    <dl class="report" id="mReport" style="display:none;"></dl>
+    <div class="hint">参考社区 <code>pa迁移.py</code> 的迁移逻辑重写；解码采用字节级伪 Latin-1（比原脚本的 gb2312 直读更稳）。</div>
+  </div>
+  </div><!-- /page-migrate -->
 
   <script>
     const T = window.__TAURI__;
@@ -112,6 +167,23 @@
 
     const $ = (id) => document.getElementById(id);
     let direction = "to_unicode";
+
+    // Tab switching.
+    document.querySelectorAll("#tabs button").forEach((b) => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll("#tabs button").forEach((x) => x.classList.remove("active"));
+        document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+        b.classList.add("active");
+        $("page-" + b.dataset.page).classList.add("active");
+      });
+    });
+
+    // The "convert all .txt folders" toggle only matters when .txt is on.
+    function syncTxtOpts() {
+      $("txtAllFolders").disabled = !$("convertTxt").checked;
+    }
+    $("convertTxt").addEventListener("change", syncTxtOpts);
+    syncTxtOpts();
 
     document.querySelectorAll("#dir button").forEach((b) => {
       b.addEventListener("click", () => {
@@ -122,7 +194,7 @@
     });
 
     async function pickFile(target) {
-      const sel = await dialog.open({ multiple: false, directory: false, filters: [{ name: "CSV", extensions: ["csv"] }] });
+      const sel = await dialog.open({ multiple: false, directory: false, filters: [{ name: "Vic2 本地化/脚本", extensions: ["csv", "txt"] }] });
       if (sel) $(target).value = sel;
     }
     async function pickDir(target) {
@@ -130,7 +202,7 @@
       if (sel) $(target).value = sel;
     }
     async function pickSave() {
-      const sel = await dialog.save({ filters: [{ name: "CSV", extensions: ["csv"] }] });
+      const sel = await dialog.save({ filters: [{ name: "Vic2 本地化/脚本", extensions: ["csv", "txt"] }] });
       if (sel) $("output").value = sel;
     }
 
@@ -152,6 +224,8 @@
         direction,
         codepage: $("codepage").value,
         safeTokens: $("safeTokens").checked,
+        convertTxt: $("convertTxt").checked,
+        txtAllFolders: $("txtAllFolders").checked,
       };
     }
 
@@ -180,6 +254,49 @@
         setStatus("预览已更新（前 4 KB）", "ok");
       } catch (e) {
         setStatus(`预览失败：${e}`, "err");
+      }
+    });
+
+    // ---- PA migration tab ----
+    $("pickModDir").addEventListener("click", async () => {
+      const sel = await dialog.open({ multiple: false, directory: true });
+      if (sel) $("modDir").value = sel;
+    });
+
+    function setMStatus(msg, cls) {
+      const s = $("mStatus");
+      s.textContent = msg;
+      s.className = cls || "";
+    }
+
+    $("runMigrate").addEventListener("click", async () => {
+      const modDir = $("modDir").value.trim();
+      if (!modDir) { setMStatus("请先选择模组目录", "err"); return; }
+      setMStatus("迁移中…");
+      $("mReport").style.display = "none";
+      try {
+        const r = await invoke("pa_migrate_cmd", {
+          req: {
+            modDir,
+            codepage: $("paCodepage").value,
+            backup: $("paBackup").checked,
+          },
+        });
+        const rows = [
+          ["备份目录", r.backupDir || "（未备份）"],
+          ["localisation 解码文件数", r.localisationFiles],
+          ["扫描脚本数", r.scriptsScanned],
+          ["改写脚本数", r.scriptsModified],
+          ["抽取词条数", r.entriesExtracted],
+          ["生成 CSV 数", r.csvFilesWritten],
+        ];
+        $("mReport").innerHTML = rows
+          .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+          .join("");
+        $("mReport").style.display = "grid";
+        setMStatus("迁移完成", "ok");
+      } catch (e) {
+        setMStatus(`失败：${e}`, "err");
       }
     });
   </script>
