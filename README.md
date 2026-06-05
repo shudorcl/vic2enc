@@ -55,9 +55,12 @@ ParadoxLocalisationAssistant/  参考实现（C#，未改动）
 
 到本仓库的 **Releases** 页面下载对应压缩包：
 
-- `vic2enc-win64.zip` —— 64 位 Windows（绝大多数电脑）。
-- `vic2enc-win32.zip` —— 32 位 / 很老的系统（Win7/XP 等）。
-- `Vic2-encoding-setup.exe` —— 图形界面安装版（需 WebView2，老系统用不了就选上面的 zip）。
+- `Vic2-encoding-portable.exe` —— **图形界面·单文件免安装**，双击即用（界面已打包进这一个 exe）。
+  仅需系统自带的 **WebView2 运行时**（Win10 1803+/Win11 默认就有；Win7/8 装一次微软的
+  WebView2 即可）。
+- `Vic2-encoding-setup.exe` —— 图形界面·安装版（带开始菜单/卸载项，内核同上）。
+- `vic2enc-win64.zip` —— 命令行 + 一键 bat，64 位 Windows（绝大多数电脑）。
+- `vic2enc-win32.zip` —— 命令行 + 一键 bat，32 位 / 很老的系统（Win7/XP 等，跑不动 GUI 用这个）。
 
 zip 里有 `vic2enc.exe`、`一键解码.bat`、`一键编码.bat`、`使用说明.txt`，解压到同一文件夹后：
 
@@ -142,9 +145,14 @@ cargo test --workspace
   另有一个**建议性**的 fmt + clippy 任务（`continue-on-error`，不阻断，跑过 `cargo fmt`
   后可改成强制）。
 - **Release**（`release.yml`）：推送 `v*` tag 时触发，自动产出并上传到 GitHub Release：
+  - `Vic2-encoding-portable.exe` —— **单文件免安装 GUI**（前端编译时已嵌入 exe，
+    普通 `cargo build` 即得；只依赖系统 WebView2）。
   - `vic2enc-win64.zip` / `vic2enc-win32.zip` —— CLI + 一键 `.bat` + 使用说明，
     静态链接 CRT（`+crt-static`），裸 Win7+ 免装 VC++ 运行库即可跑（含 32 位老平台）。
-  - `Vic2-encoding-setup.exe` —— Tauri NSIS 安装包（best-effort，失败不影响 CLI 产物）。
+  - `Vic2-encoding-setup.exe` —— Tauri NSIS 安装包（best-effort，失败不影响其他产物）。
+
+> 想要**完全离线、不依赖系统 WebView2** 的单文件？可改用 WebView2「固定版本」运行时——
+> 但那会带上一个运行时文件夹，就不再是单文件了。单文件方案即「应用 exe + 系统 WebView2」。
 
 发布一个版本：
 

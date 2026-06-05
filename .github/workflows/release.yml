@@ -56,10 +56,45 @@ jobs:
           generate_release_notes: true
 
   # ---------------------------------------------------------------------------
-  # Tauri desktop installer (NSIS). Best-effort: a hiccup here must not block
-  # the CLI artifacts above, which are what old-platform users actually need.
+  # Portable single-file GUI. Tauri bakes the whole frontend into the app .exe
+  # at compile time, so a plain `cargo build --release` already yields one
+  # self-contained executable — no installer, no extra files. Needs only the
+  # system WebView2 runtime (preinstalled on Win10 1803+/Win11). This is the
+  # primary GUI deliverable, so build it the robust way (no tauri-cli / NSIS).
   # ---------------------------------------------------------------------------
-  desktop:
+  desktop-portable:
+    name: Desktop portable (single .exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build app binary
+        run: cargo build --release --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: Collect portable exe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path desktop/src-tauri/target/release `
+                   -Filter *.exe -File | Select-Object -First 1
+          if (-not $exe) { throw "app .exe not found" }
+          Copy-Item $exe.FullName "Vic2-encoding-portable.exe"
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Vic2-encoding-portable.exe
+          generate_release_notes: true
+
+  # ---------------------------------------------------------------------------
+  # NSIS installer — a nicety for users who prefer Start-menu/uninstall entries.
+  # Best-effort: a hiccup here must not block the portable exe or CLI artifacts.
+  # ---------------------------------------------------------------------------
+  desktop-installer:
     name: Desktop installer (NSIS)
     runs-on: windows-latest
     continue-on-error: true
