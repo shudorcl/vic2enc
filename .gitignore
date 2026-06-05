@@ -1,6 +1,7 @@
 /target
 /desktop/src-tauri/target
 /desktop/src-tauri/gen
+/dist
 /ParadoxLocalisationAssistant
 **/*.rs.bk
 *.pdb

@@ -61,6 +61,11 @@ jobs:
   # self-contained executable — no installer, no extra files. Needs only the
   # system WebView2 runtime (preinstalled on Win10 1803+/Win11). This is the
   # primary GUI deliverable, so build it the robust way (no tauri-cli / NSIS).
+  #
+  # NOTE: single-file-ness depends on the MSVC host — webview2-com-sys only
+  # static-links WebView2LoaderStatic.lib under target_env="msvc". windows-latest
+  # defaults to the MSVC host, so this is satisfied. A GNU/MinGW build would
+  # instead need WebView2Loader.dll shipped beside the exe.
   # ---------------------------------------------------------------------------
   desktop-portable:
     name: Desktop portable (single .exe)
