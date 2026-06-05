@@ -1,0 +1,13 @@
+# One-click launchers ship as GBK (cp936) + CRLF so they render correctly in the
+# default console / Notepad on Simplified-Chinese Windows. Keep them byte-exact —
+# never let Git re-encode or convert their line endings.
+scripts/*.bat   -text
+scripts/*.txt   -text
+
+# Rust / web / config sources use LF.
+*.rs   text eol=lf
+*.toml text eol=lf
+*.md   text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf

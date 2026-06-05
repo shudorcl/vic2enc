@@ -1,0 +1,93 @@
+name: Release
+
+# Tag a release to trigger:  git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CLI + one-click .bat bundle, for old / low-end platforms (incl. 32-bit).
+  # Statically links the CRT so the .exe runs on a bare Win7+ without any
+  # VC++ redistributable.
+  # ---------------------------------------------------------------------------
+  cli:
+    name: CLI (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: win64
+          - target: i686-pc-windows-msvc
+            arch: win32
+    env:
+      RUSTFLAGS: "-C target-feature=+crt-static"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI
+        run: cargo build --release -p vic2enc-cli --target ${{ matrix.target }}
+
+      - name: Stage package
+        shell: pwsh
+        run: |
+          $pkg = "vic2enc-${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/vic2enc.exe" $pkg/
+          Copy-Item "scripts/*" $pkg/          # 一键解码.bat / 一键编码.bat / 使用说明.txt
+          Compress-Archive -Path "$pkg/*" -DestinationPath "$pkg.zip" -Force
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: vic2enc-${{ matrix.arch }}.zip
+          generate_release_notes: true
+
+  # ---------------------------------------------------------------------------
+  # Tauri desktop installer (NSIS). Best-effort: a hiccup here must not block
+  # the CLI artifacts above, which are what old-platform users actually need.
+  # ---------------------------------------------------------------------------
+  desktop:
+    name: Desktop installer (NSIS)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build desktop bundle
+        working-directory: desktop/src-tauri
+        run: cargo tauri build --bundles nsis
+
+      - name: Collect installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Path desktop/src-tauri/target/release/bundle `
+                   -Filter *-setup.exe | Select-Object -First 1
+          if (-not $exe) { throw "NSIS installer not found" }
+          Copy-Item $exe.FullName "Vic2-encoding-setup.exe"
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Vic2-encoding-setup.exe
+          generate_release_notes: true

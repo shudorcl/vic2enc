@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Avoid stacking redundant runs on rapid pushes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & test (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test (core + cli)
+        run: cargo test --workspace
+
+      # The desktop crate is a detached workspace; type-check it separately so a
+      # break there is caught without needing a full Tauri bundle in CI.
+      - name: Check desktop crate
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml
+
+  # Formatting/lint suggestions. Advisory (does not block) — flip
+  # continue-on-error to false once you've run `cargo fmt` locally if you want
+  # it enforced.
+  lint:
+    name: Format & clippy (advisory)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
