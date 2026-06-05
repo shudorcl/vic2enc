@@ -1,0 +1,17 @@
+[package]
+name = "vic2enc-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Encoding conversion core for Victoria 2 localisation CSV files (GBK dummy-Latin1 <-> Unicode)"
+
+[dependencies]
+encoding_rs.workspace = true
+thiserror.workspace = true
+walkdir.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+# Enables serde derives on the public option/enum types (used by the Tauri app).
+serde = ["dep:serde"]

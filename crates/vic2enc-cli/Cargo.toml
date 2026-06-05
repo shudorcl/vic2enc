@@ -1,0 +1,15 @@
+[package]
+name = "vic2enc-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line encoding converter for Victoria 2 localisation CSV files"
+
+[[bin]]
+name = "vic2enc"
+path = "src/main.rs"
+
+[dependencies]
+vic2enc-core = { path = "../vic2enc-core" }
+clap.workspace = true
+anyhow.workspace = true
