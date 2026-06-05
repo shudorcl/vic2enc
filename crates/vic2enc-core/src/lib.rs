@@ -11,10 +11,12 @@
 
 mod convert;
 mod dummy_latin1;
+mod pa_migrate;
 mod safe_token;
 
-pub use convert::{convert_bytes, convert_dir, convert_file, Stats};
+pub use convert::{convert_bytes, convert_dir, convert_file, BatchScope, Stats};
 pub use dummy_latin1::{dummy_latin1_to_unicode, unicode_to_dummy_latin1};
+pub use pa_migrate::{pa_migrate, PaMigrateOptions, PaMigrateReport, DEFAULT_TARGET_FOLDERS};
 pub use safe_token::{to_safe_string, to_unsafe_string};
 
 /// Multi-byte codepage used for the "dummy Latin-1" layer.
