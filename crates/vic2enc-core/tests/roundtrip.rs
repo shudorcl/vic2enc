@@ -67,6 +67,31 @@ fn utf8_script_line_encodes_to_gbk_game_format() {
 }
 
 #[test]
+fn middle_dot_in_name_encodes_as_gbk_pair_not_lone_latin1() {
+    // Regression for transliterated names like 阿拉贡二世·埃莱萨: the `·` (U+00B7)
+    // must become GBK `A1 A4`, not the Windows-1252 byte 0xB7. 0xB7 is a GBK lead
+    // byte, so a lone 0xB7 would swallow the next char's first byte and corrupt
+    // everything after it.
+    let name = "阿拉贡二世·埃莱萨";
+    let game = convert_bytes(name.as_bytes(), Direction::ToGame, &opts(false));
+
+    let mut expected = Vec::new();
+    expected.extend_from_slice(&[0xB0, 0xA2]); // 阿
+    expected.extend_from_slice(&[0xC0, 0xAD]); // 拉
+    expected.extend_from_slice(&[0xB9, 0xB1]); // 贡
+    expected.extend_from_slice(&[0xB6, 0xFE]); // 二
+    expected.extend_from_slice(&[0xCA, 0xC0]); // 世
+    expected.extend_from_slice(&[0xA1, 0xA4]); // ·
+    expected.extend_from_slice(&[0xB0, 0xA3]); // 埃
+    expected.extend_from_slice(&[0xC0, 0xB3]); // 莱
+    expected.extend_from_slice(&[0xC8, 0xF8]); // 萨
+    assert_eq!(game, expected);
+
+    let back = convert_bytes(&game, Direction::ToUnicode, &opts(false));
+    assert_eq!(String::from_utf8(back).unwrap(), name);
+}
+
+#[test]
 fn pound_starting_gbk_pair_is_not_an_icon_key() {
     // 0xA3 followed by a high byte is a real GBK full-width sequence (０ = A3B0),
     // not a `£` icon delimiter. It must decode as the full-width digit and

@@ -110,31 +110,50 @@ pub fn dummy_latin1_to_unicode(bytes: &[u8], cp: Codepage) -> String {
 
 /// Convert readable Unicode back into game-format "dummy Latin-1" bytes.
 ///
-/// Each character is emitted as its single Windows-1252 byte when possible
-/// (covers ASCII, accented Latin-1, smart quotes, and the `£`/`¤`/`§` control
-/// characters); otherwise it is encoded as GBK bytes (Chinese and other CJK).
+/// The codepage (GBK) wins for any character it can represent, because the game
+/// renders bytes through the Chinese GBK font and the decoder likewise prefers
+/// GBK pairs. Emitting a lone Latin-1 byte for a GBK-representable character
+/// would be wrong: e.g. the middle dot `·` (U+00B7) is GBK `A1 A4`, but its
+/// Windows-1252 byte `0xB7` is a GBK *lead* byte and would swallow the next
+/// character's first byte, corrupting everything downstream.
+///
+/// Order of preference per character:
+/// 1. ASCII (`< 0x80`) — identical across cp1252/GBK/Latin-1.
+/// 2. The Paradox control chars `£`/`¤`/`§` — kept as their single cp1252 byte
+///    so they are never turned into GBK's own multi-byte form.
+/// 3. GBK — Chinese, CJK punctuation, the middle dot, full-width forms, etc.
+/// 4. A single Latin-1 byte — fallback for characters GBK cannot encode that
+///    still fit in one byte (notably cp1252's 5 undefined slots
+///    0x81/0x8D/0x8F/0x90/0x9D, which GBK would need a 4-byte GB18030 sequence
+///    for and so reports as unmappable).
+/// 5. Windows-1252 lossy (`?`) — last resort for anything else.
 pub fn unicode_to_dummy_latin1(s: &str, cp: Codepage) -> Vec<u8> {
     let enc = codepage_encoding(cp);
     let mut out = Vec::with_capacity(s.len());
     let mut buf = [0u8; 4];
     for c in s.chars() {
+        let u = c as u32;
+
+        if u < 0x80 {
+            out.push(u as u8);
+            continue;
+        }
+        if u == POUND as u32 || u == CURRENCY as u32 || u == SECTION as u32 {
+            out.push(u as u8);
+            continue;
+        }
+
         let cs = c.encode_utf8(&mut buf);
-        // Prefer a single Latin-1 byte so control chars stay one byte and never
-        // get turned into GBK's own multi-byte form of `£`/`¤`/`§`.
-        let (bytes, _, unmappable) = WINDOWS_1252.encode(cs);
+        let (bytes, _, unmappable) = enc.encode(cs);
         if !unmappable {
             out.extend_from_slice(&bytes);
             continue;
         }
-        // Windows-1252's 5 undefined byte slots (0x81/0x8D/0x8F/0x90/0x9D) decode
-        // to the C1 control of the same value but cannot be *encoded* by
-        // encoding_rs. Any unmappable char that still fits in one byte is one of
-        // those, so emit it directly to keep the round-trip lossless.
-        if (c as u32) <= 0xFF {
-            out.push(c as u8);
+        if u <= 0xFF {
+            out.push(u as u8);
             continue;
         }
-        let (bytes, _, _) = enc.encode(cs);
+        let (bytes, _, _) = WINDOWS_1252.encode(cs);
         out.extend_from_slice(&bytes);
     }
     out
@@ -182,15 +201,38 @@ mod tests {
     }
 
     #[test]
-    fn every_single_byte_roundtrips_losslessly() {
-        // A lone (non-CJK-pair) byte must survive decode->encode, including the
-        // 5 Windows-1252 undefined slots.
-        for b in 0u16..=255 {
-            let b = b as u8;
+    fn ascii_control_and_undefined_bytes_roundtrip() {
+        // The bytes that *must* survive a lone decode->encode are: ASCII, the
+        // Paradox control bytes, and cp1252's 5 undefined slots (which GBK cannot
+        // encode, so the Latin-1 fallback preserves them). High bytes that form a
+        // GBK lead are intentionally NOT round-tripped in isolation — in a real
+        // file they always come paired (see `chinese_roundtrips`).
+        let mut bytes: Vec<u8> = (0x00u8..0x80).collect(); // ASCII
+        bytes.extend_from_slice(&[POUND, CURRENCY, SECTION]); // £ ¤ §
+        bytes.extend_from_slice(&[0x81, 0x8D, 0x8F, 0x90, 0x9D]); // cp1252 undefined
+        for b in bytes {
             let s = dummy_latin1_to_unicode(&[b], Codepage::Gbk);
             let back = unicode_to_dummy_latin1(&s, Codepage::Gbk);
             assert_eq!(back, vec![b], "byte {b:#04X} did not round-trip (got {s:?})");
         }
+    }
+
+    #[test]
+    fn gbk_representable_punctuation_is_not_a_lone_latin1_byte() {
+        // Regression: the middle dot `·` (U+00B7) used in transliterated names is
+        // GBK `A1 A4`, not the Windows-1252 byte 0xB7 — emitting 0xB7 (a GBK lead
+        // byte) would swallow the next char's first byte and corrupt the stream,
+        // e.g. `阿拉贡二世·埃莱萨` -> `阿拉贡二世钒＠橙�`.
+        assert_eq!(unicode_to_dummy_latin1("·", Codepage::Gbk), vec![0xA1, 0xA4]);
+
+        let name = "阿拉贡二世·埃莱萨";
+        let bytes = unicode_to_dummy_latin1(name, Codepage::Gbk);
+        assert!(
+            !bytes.contains(&0xB7),
+            "lone 0xB7 leaked into the byte stream: {bytes:02X?}"
+        );
+        // Every byte is either ASCII or part of a valid GBK pair => decodes back.
+        roundtrip(name);
     }
 
     #[test]
