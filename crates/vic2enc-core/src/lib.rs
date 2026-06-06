@@ -60,7 +60,11 @@ pub enum Direction {
 pub struct ConvertOptions {
     /// Codepage for the dummy-Latin1 layer.
     pub codepage: Codepage,
-    /// Protect `$VAR$`/`§`/`£`/`¤` with `<...>` safe tokens (default on).
+    /// Protect `$VAR$`/`§`/`£`/`¤` with `<...>` safe tokens (default off).
+    ///
+    /// Off keeps the readable text using the raw Paradox control codes, which is
+    /// the symmetric round-trip most mod workflows want. Turn it on only to
+    /// shield those codes from external translation/spreadsheet tooling.
     pub safe_tokens: bool,
 }
 
@@ -68,7 +72,7 @@ impl Default for ConvertOptions {
     fn default() -> Self {
         ConvertOptions {
             codepage: Codepage::default(),
-            safe_tokens: true,
+            safe_tokens: false,
         }
     }
 }

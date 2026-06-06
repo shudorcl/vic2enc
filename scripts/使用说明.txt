@@ -59,7 +59,7 @@
   编码：  vic2enc.exe encode -i 输入路径 -o 输出路径
 
 常用开关：
-  --no-safe-tokens   关闭 $变量$ / 颜色码 的保护（一般不用动）
+  --safe-tokens      把 $变量$ / 颜色码 转成 <…> 记号（默认关，给外部翻译工具用）
   --no-txt           文件夹模式下只转 csv，完全跳过 txt 脚本
   --all-txt          文件夹模式下连 events/decisions 以外的 txt 也转
   --codepage gbk     目标编码（目前只有 gbk 简体中文）

@@ -36,9 +36,11 @@ struct ConvArgs {
     #[arg(short, long)]
     output: PathBuf,
 
-    /// Disable `<...>` safe tokens for `$VAR$`/`§`/`£`/`¤` (enabled by default).
+    /// Protect `$VAR$`/`§`/`£`/`¤` with inert `<...>` safe tokens (off by
+    /// default; enable when handing the readable text to external translation
+    /// or spreadsheet tools that might mangle the raw control codes).
     #[arg(long)]
-    no_safe_tokens: bool,
+    safe_tokens: bool,
 
     /// In directory mode, skip script `*.txt` entirely and convert only `*.csv`
     /// (by default `*.txt` under `events`/`decisions` is converted too).
@@ -62,7 +64,7 @@ impl ConvArgs {
             .with_context(|| format!("unsupported codepage: {}", self.codepage))?;
         Ok(ConvertOptions {
             codepage,
-            safe_tokens: !self.no_safe_tokens,
+            safe_tokens: self.safe_tokens,
         })
     }
 }
