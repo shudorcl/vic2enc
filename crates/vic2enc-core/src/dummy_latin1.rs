@@ -213,7 +213,11 @@ mod tests {
         for b in bytes {
             let s = dummy_latin1_to_unicode(&[b], Codepage::Gbk);
             let back = unicode_to_dummy_latin1(&s, Codepage::Gbk);
-            assert_eq!(back, vec![b], "byte {b:#04X} did not round-trip (got {s:?})");
+            assert_eq!(
+                back,
+                vec![b],
+                "byte {b:#04X} did not round-trip (got {s:?})"
+            );
         }
     }
 
@@ -223,7 +227,10 @@ mod tests {
         // GBK `A1 A4`, not the Windows-1252 byte 0xB7 — emitting 0xB7 (a GBK lead
         // byte) would swallow the next char's first byte and corrupt the stream,
         // e.g. `阿拉贡二世·埃莱萨` -> `阿拉贡二世钒＠橙�`.
-        assert_eq!(unicode_to_dummy_latin1("·", Codepage::Gbk), vec![0xA1, 0xA4]);
+        assert_eq!(
+            unicode_to_dummy_latin1("·", Codepage::Gbk),
+            vec![0xA1, 0xA4]
+        );
 
         let name = "阿拉贡二世·埃莱萨";
         let bytes = unicode_to_dummy_latin1(name, Codepage::Gbk);

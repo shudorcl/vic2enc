@@ -46,7 +46,10 @@ impl Default for PaMigrateOptions {
         PaMigrateOptions {
             codepage: Codepage::default(),
             backup: true,
-            target_folders: DEFAULT_TARGET_FOLDERS.iter().map(|s| s.to_string()).collect(),
+            target_folders: DEFAULT_TARGET_FOLDERS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 }
@@ -82,7 +85,10 @@ pub fn pa_migrate(mod_dir: &Path, opts: &PaMigrateOptions) -> Result<PaMigrateRe
     let mut report = PaMigrateReport::default();
 
     let targets: Vec<String> = if opts.target_folders.is_empty() {
-        DEFAULT_TARGET_FOLDERS.iter().map(|s| s.to_string()).collect()
+        DEFAULT_TARGET_FOLDERS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     } else {
         opts.target_folders.clone()
     };
@@ -140,7 +146,10 @@ pub fn pa_migrate(mod_dir: &Path, opts: &PaMigrateOptions) -> Result<PaMigrateRe
                 continue;
             }
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("txt"))
+            if path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("txt"))
                 != Some(true)
             {
                 continue;
@@ -160,7 +169,10 @@ pub fn pa_migrate(mod_dir: &Path, opts: &PaMigrateOptions) -> Result<PaMigrateRe
             report.entries_extracted += entries.len();
 
             // Append `English;中文;x` rows to a sibling CSV under zh-CN/.
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("extracted");
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("extracted");
             let csv_path = dest_root.join(format!("{stem}.csv"));
             let existed = csv_path.exists();
             std::fs::create_dir_all(&dest_root).map_err(io_err(&dest_root))?;
@@ -436,7 +448,10 @@ mod tests {
         // Backup preserves the original game-format script bytes.
         let backup = PathBuf::from(report.backup_dir.unwrap());
         let backed_up = std::fs::read(backup.join("events").join("e.txt")).unwrap();
-        assert_eq!(backed_up, to_game("\tname = \"北京\" # Beijing\n\tdesc = \"plain\"\n"));
+        assert_eq!(
+            backed_up,
+            to_game("\tname = \"北京\" # Beijing\n\tdesc = \"plain\"\n")
+        );
 
         let _ = std::fs::remove_dir_all(&base);
     }

@@ -256,18 +256,38 @@ mod tests {
         assert!(should_convert(root, Path::new("/mod/common/x.csv"), none));
         // txt under events / decisions
         assert!(should_convert(root, Path::new("/mod/events/x.txt"), none));
-        assert!(should_convert(root, Path::new("/mod/decisions/sub/y.txt"), none));
-        assert!(should_convert(root, Path::new("/mod/Events/CamelCase.txt"), none));
+        assert!(should_convert(
+            root,
+            Path::new("/mod/decisions/sub/y.txt"),
+            none
+        ));
+        assert!(should_convert(
+            root,
+            Path::new("/mod/Events/CamelCase.txt"),
+            none
+        ));
         // txt elsewhere: skipped by default
-        assert!(!should_convert(root, Path::new("/mod/common/units/z.txt"), none));
+        assert!(!should_convert(
+            root,
+            Path::new("/mod/common/units/z.txt"),
+            none
+        ));
         // ...but converted when txt_all_folders is set
         let all = BatchScope {
             txt_all_folders: true,
             ..BatchScope::default()
         };
-        assert!(should_convert(root, Path::new("/mod/common/units/z.txt"), all));
+        assert!(should_convert(
+            root,
+            Path::new("/mod/common/units/z.txt"),
+            all
+        ));
         // unrelated extensions never convert
-        assert!(!should_convert(root, Path::new("/mod/events/readme.md"), none));
+        assert!(!should_convert(
+            root,
+            Path::new("/mod/events/readme.md"),
+            none
+        ));
     }
 
     #[test]
@@ -278,10 +298,22 @@ mod tests {
             txt_all_folders: true,
         };
         // csv still converts
-        assert!(should_convert(root, Path::new("/mod/localisation/x.csv"), no_txt));
+        assert!(should_convert(
+            root,
+            Path::new("/mod/localisation/x.csv"),
+            no_txt
+        ));
         // ...but every txt is skipped, even under events and even with all-folders on
-        assert!(!should_convert(root, Path::new("/mod/events/x.txt"), no_txt));
-        assert!(!should_convert(root, Path::new("/mod/common/y.txt"), no_txt));
+        assert!(!should_convert(
+            root,
+            Path::new("/mod/events/x.txt"),
+            no_txt
+        ));
+        assert!(!should_convert(
+            root,
+            Path::new("/mod/common/y.txt"),
+            no_txt
+        ));
     }
 
     #[test]
@@ -306,8 +338,14 @@ mod tests {
         std::fs::write(src.join("common").join("c.txt"), "ignored = \"上海\"\n").unwrap();
 
         let out = base.join("out");
-        let stats = convert_dir(&src, &out, Direction::ToGame, &opts(false), BatchScope::default())
-            .unwrap();
+        let stats = convert_dir(
+            &src,
+            &out,
+            Direction::ToGame,
+            &opts(false),
+            BatchScope::default(),
+        )
+        .unwrap();
         assert_eq!(stats.files, 2, "csv + events/txt only");
         assert!(out.join("localisation.csv").exists());
         assert!(out.join("events").join("e.txt").exists());
