@@ -5,7 +5,7 @@
 - 🖥 **桌面端**：Tauri v2 + Rust 图形界面，单文件免安装。
 - ⌨️ **命令行**：纯 Rust CLI，给跑不动 WebView2 的老平台（Win7/旧机、32 位）兜底。
 - 🖱 **一键脚本**：随 CLI 附带拖拽即用的 `.bat`，不懂命令行也能用。
-- 🦀 核心逻辑参考 [`ParadoxLocalisationAssistant`](https://github.com/) 在 Rust 中按**字节级**重写，保证无损往返。
+- 🦀 核心逻辑参考 `ParadoxLocalisationAssistant`（C#/WinForms）在 Rust 中按**字节级**重写，保证无损往返。
 
 > ⚠️ 本工具只负责**编码转换**。中文能否在游戏里正常显示，仍取决于你安装了对应的**中文字体补丁**。
 
@@ -165,7 +165,7 @@ git push origin v0.1.0
 
 ## 致谢
 
-- 编码往返核心逻辑参考自 [`ParadoxLocalisationAssistant`](https://github.com/)（C#/WinForms）。
+- 编码往返核心逻辑参考自 `ParadoxLocalisationAssistant`（C#/WinForms）。
 - PA 迁移逻辑参考社区 `pa迁移.py`。
 
 ## 许可
