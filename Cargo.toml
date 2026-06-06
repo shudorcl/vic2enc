@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["Vic2Encoding contributors"]
-repository = ""
+repository = "https://github.com/shudorcl/vic2enc"
 
 [workspace.dependencies]
 encoding_rs = "0.8"
