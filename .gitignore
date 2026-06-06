@@ -2,6 +2,8 @@
 /desktop/src-tauri/target
 /desktop/src-tauri/gen
 /dist
+# Local-only backup of the pre-open-source README, kept for reference.
+/README.original.md
 /ParadoxLocalisationAssistant
 **/*.rs.bk
 *.pdb
