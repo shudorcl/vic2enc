@@ -18,12 +18,10 @@
 
 /// Does `chars[i..]` start with `pat`?
 fn matches_at(chars: &[char], i: usize, pat: &str) -> bool {
-    let mut j = i;
-    for pc in pat.chars() {
+    for (j, pc) in (i..).zip(pat.chars()) {
         if j >= chars.len() || chars[j] != pc {
             return false;
         }
-        j += 1;
     }
     true
 }

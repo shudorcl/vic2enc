@@ -55,7 +55,7 @@ pub enum Direction {
 }
 
 /// Options controlling a conversion.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConvertOptions {
     /// Codepage for the dummy-Latin1 layer.
@@ -66,15 +66,6 @@ pub struct ConvertOptions {
     /// the symmetric round-trip most mod workflows want. Turn it on only to
     /// shield those codes from external translation/spreadsheet tooling.
     pub safe_tokens: bool,
-}
-
-impl Default for ConvertOptions {
-    fn default() -> Self {
-        ConvertOptions {
-            codepage: Codepage::default(),
-            safe_tokens: false,
-        }
-    }
 }
 
 /// Errors produced by the file/directory conversion helpers.
